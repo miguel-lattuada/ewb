@@ -10,8 +10,8 @@ use std::{
 type Err = Box<dyn Error>;
 
 #[derive(Debug)]
-struct URLError {
-    message: String,
+pub struct URLError {
+    pub message: String,
 }
 
 impl Display for URLError {
@@ -54,7 +54,7 @@ pub struct URL {
 }
 
 impl URL {
-    fn new(url: String) -> Result<Self, Err> {
+    pub fn new(url: String) -> Result<Self, Err> {
         let (scheme, rest) = url.split_once("://").ok_or("URL missing scheme")?;
         let (host, path) = rest.split_once('/').map_or((rest, ""), |(h, p)| (h, p));
 

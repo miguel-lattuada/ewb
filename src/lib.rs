@@ -1,6 +1,8 @@
+mod bidings;
 mod html;
 mod url;
 
+use bidings::*;
 use pyo3::prelude::*;
 
 /// Formats the sum of two numbers as string.
@@ -13,5 +15,7 @@ fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
 #[pymodule]
 fn ewb(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
+    m.add_function(wrap_pyfunction!(load, m)?)?;
+    m.add_function(wrap_pyfunction!(request, m)?)?;
     Ok(())
 }

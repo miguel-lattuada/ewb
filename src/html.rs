@@ -3,15 +3,15 @@ use std::{collections::HashMap, iter::Peekable, str::Chars};
 type Attrs = HashMap<String, String>;
 
 #[derive(Debug)]
-struct NodeData {
-    tag_name: String,
-    attributes: Attrs,
+pub struct NodeData {
+    pub tag_name: String,
+    pub attributes: Attrs,
 }
 
 #[derive(Debug)]
-struct Node {
-    children: Vec<Node>,
-    data: NodeData,
+pub struct Node {
+    pub children: Vec<Node>,
+    pub data: NodeData,
 }
 
 impl Node {
@@ -23,7 +23,7 @@ impl Node {
     }
 }
 
-struct HTMLParser<'a> {
+pub struct HTMLParser<'a> {
     chars: Peekable<Chars<'a>>,
 }
 
