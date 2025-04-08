@@ -112,51 +112,65 @@ impl<'a> HTMLParser<'a> {
     }
 
     fn parse_content(&mut self, node: &mut Node) {
-        // Check if content is another element
-        if *self.chars.peek().unwrap() == '<' {
-            if let Some(child) = self.parse() {
-                node.children.push(child);
-            }
-        } else {
-            // Treat content as plain text and skip the closing tag
-            let mut content_str = String::new();
+        loop {
+            if let Some(next_char) = self.chars.peek() {
+                // Check if content is another element
+                if *next_char == '<' {
+                    self.chars.next().unwrap();
 
-            loop {
-                if let Some(next_char) = self.chars.peek() {
-                    // Tag content is until we find < part of the closing tag --> (<)tagname />
-                    if *next_char == '<' {
-                        // Consume <
-                        self.chars.next().unwrap();
-                        break;
+                    if let Some(child) = self.parse() {
+                        node.children.push(child);
+                    }
+                } else {
+                    // Treat content as plain text and skip the closing tag
+                    let mut content_str = String::new();
+
+                    loop {
+                        if let Some(next_char) = self.chars.peek() {
+                            // Tag content is until we find < part of the closing tag --> (<)tagname />
+                            if *next_char == '<' {
+                                // Consume <
+                                self.chars.next().unwrap();
+                                break;
+                            }
+
+                            content_str.push(self.chars.next().unwrap());
+                        } else {
+                            break;
+                        }
                     }
 
-                    content_str.push(self.chars.next().unwrap());
-                } else {
-                    break;
+                    // We create a "text" node for now to represent non-node children
+                    // This will contain all CSS / JS / Plan Text
+                    let mut text_node = Node {
+                        data: NodeData {
+                            tag_name: "text".to_string(),
+                            attributes: HashMap::new(),
+                        },
+                        children: Vec::new(),
+                    };
+
+                    text_node
+                        .data
+                        .attributes
+                        .insert("content".to_string(), content_str);
+
+                    node.children.push(text_node);
+
+                    // Consum until the end of the tag
+                    while let Some(next_char) = self.chars.peek() {
+                        if *next_char == '>' {
+                            // Consume the '>'
+                            self.chars.next().unwrap();
+                            break;
+                        }
+                        self.chars.next().unwrap();
+                    }
+
+                    break; // Once we parse non-node content from a node, we just close the loop
                 }
-            }
-
-            // We create a "text" node for now to represent non-node children
-            // This will contain all CSS / JS / Plan Text
-            let mut text_node = Node {
-                data: NodeData {
-                    tag_name: "text".to_string(),
-                    attributes: HashMap::new(),
-                },
-                children: Vec::new(),
-            };
-
-            text_node
-                .data
-                .attributes
-                .insert("content".to_string(), content_str);
-
-            node.children.push(text_node);
-
-            // We need to consume the rest of the closing tag <tagname /> <---
-            // We also need to check if we are not at the end of the sequence
-            while !self.is_at_end() && *self.chars.peek().unwrap() != '>' {
-                self.chars.next().unwrap();
+            } else {
+                break;
             }
         }
     }
@@ -219,5 +233,13 @@ mod tests {
             h1_text_node.data.attributes.get("content"),
             Some(&"Welcome to my page".to_string())
         );
+    }
+
+    #[test]
+    fn test_parse_sibling_content() {
+        let html = r#"<html data-darkreader-mode="dynamic" data-darkreader-scheme="dark"><h1 class="title-site">Welcome to my page</h1><h2 class="subtitle-site">Subtitle content</h2></html>"#;
+        let mut parser = HTMLParser::new(html);
+        let node = parser.parse().unwrap();
+        assert!(node.children.len() == 2);
     }
 }
