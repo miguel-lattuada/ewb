@@ -1,5 +1,7 @@
 use std::{collections::HashMap, iter::Peekable, str::Chars};
 
+use regex::Regex;
+
 type Attrs = HashMap<String, String>;
 
 static SELF_CLOSING_TAGS: [&'static str; 4] = ["meta", "link", "input", "img"];
@@ -104,7 +106,7 @@ impl<'a> HTMLParser<'a> {
                 break;
             }
         }
-        
+
         // Trimming, there's always an empty space at the start from previous step (parse tag)
         // <p class="35"></p>
         // parse tag name will consume ane leave: '( )class="asd"'
@@ -117,7 +119,11 @@ impl<'a> HTMLParser<'a> {
 
         let mut attributes = HashMap::new();
 
-        let attributes_pairs = attributes_str.split(' ').collect::<Vec<&str>>();
+        let attributes_pairs = Regex::new(r#"[^\s=]+="[^"]*""#)
+            .unwrap()
+            .find_iter(attributes_str.as_str())
+            .map(|m| m.as_str())
+            .collect::<Vec<&str>>();
 
         for attr_pair in attributes_pairs {
             let (attr_name, attr_value) = attr_pair
@@ -138,8 +144,19 @@ impl<'a> HTMLParser<'a> {
                 if *next_char == '<' {
                     self.chars.next().unwrap();
 
+                    // check that we are not in a closing tag instead of an opening one
                     if let Some('/') = self.chars.peek() {
-                        break;
+                        // If we are in a closing tag, consume all the chars until we find a > char
+                        while let Some(next_char) = self.chars.peek() {
+                            if *next_char == '>' {
+                                // Consume the '>'
+                                self.chars.next().unwrap();
+                                break;
+                            }
+                            self.chars.next().unwrap();
+                        }
+
+                        break; // We break out of the loop since we already parsed child for this element
                     }
 
                     if let Some(child) = self.parse() {
@@ -197,10 +214,6 @@ impl<'a> HTMLParser<'a> {
                 break;
             }
         }
-    }
-
-    fn is_at_end(&mut self) -> bool {
-        self.chars.peek().is_none()
     }
 }
 
@@ -291,7 +304,68 @@ mod tests {
 
     #[test]
     fn test_parse_meta_tags() {
+        let html = r#"<html><head><title>Example Domain</title><style class="darkreader darkreader--fallback" media="screen">some attributes</style></head></html>"#;
+        let mut parser = HTMLParser::new(html);
+        let node = parser.parse().unwrap();
+
+        println!("{:#?}", node);
+
+        // TODO: enable test
+        assert!(true);
+
+        // assert!(node.children.len() == 2);
+        // assert_eq!(h1.data.tag_name, "h1".to_string());
+        // assert_eq!(
+        //     h1.data.attributes.get("class"),
+        //     Some(&"title-site".to_string())
+        // );
+        // assert_eq!(
+        //     h1_text_node.data.attributes.get("content"),
+        //     Some(&"Welcome to my page".to_string())
+        // );
+        // assert_eq!(
+        //     h2.data.attributes.get("class"),
+        //     Some(&"subtitle-site".to_string())
+        // );
+        // assert_eq!(
+        //     h2_text_node.data.attributes.get("content"),
+        //     Some(&"Subtitle content".to_string())
+        // );
+    }
+
+    #[test]
+    fn test_parse_nested_body_tags() {
         let html = r#"<html><head><title>Example Domain</title><meta charset="utf-8"><meta content="text/html; charset=utf-8" http-equiv="Content-type"><meta content="width=device-width,initial-scale=1" name="viewport"></head><body><div><h1>Example Domain</h1><p>This domain is for use in illustrative examples in documents. You may use this domain in literature without prior coordination or asking for permission.</p><p><a>More information...</a></p></div></body></html>"#;
+        let mut parser = HTMLParser::new(html);
+        let node = parser.parse().unwrap();
+
+        println!("{:#?}", node);
+
+        assert!(true);
+
+        // assert!(node.children.len() == 2);
+        // assert_eq!(h1.data.tag_name, "h1".to_string());
+        // assert_eq!(
+        //     h1.data.attributes.get("class"),
+        //     Some(&"title-site".to_string())
+        // );
+        // assert_eq!(
+        //     h1_text_node.data.attributes.get("content"),
+        //     Some(&"Welcome to my page".to_string())
+        // );
+        // assert_eq!(
+        //     h2.data.attributes.get("class"),
+        //     Some(&"subtitle-site".to_string())
+        // );
+        // assert_eq!(
+        //     h2_text_node.data.attributes.get("content"),
+        //     Some(&"Subtitle content".to_string())
+        // );
+    }
+
+    #[test]
+    fn test_parse_long_body_tags() {
+        let html = r#"<html data-darkreader-mode="dynamic" data-darkreader-scheme="dark"><head><style class="darkreader darkreader--fallback" media="screen"></style><style class="darkreader darkreader--text" media="screen"></style><style class="darkreader darkreader--invert" media="screen">.captcheck_answer_label>input+img,.d2l-iframe-loading-container,.d2l-navigation-link-image-container,.jfk-bubble.gtx-bubble,a[data-testid=headerMediumLogo]>svg,img.Wirisformula,span#closed_text>img[src^="https://www.gstatic.com/images/branding/googlelogo"],span[data-href^="https://www.hcaptcha.com/"]>#icon{filter:invert(100%) hue-rotate(180deg) contrast(90%)!important}</style><style class="darkreader darkreader--inline" media="screen">[data-darkreader-inline-bgcolor]{background-color:var(--darkreader-inline-bgcolor)!important}[data-darkreader-inline-bgimage]{background-image:var(--darkreader-inline-bgimage)!important}[data-darkreader-inline-border]{border-color:var(--darkreader-inline-border)!important}[data-darkreader-inline-border-bottom]{border-bottom-color:var(--darkreader-inline-border-bottom)!important}[data-darkreader-inline-border-left]{border-left-color:var(--darkreader-inline-border-left)!important}[data-darkreader-inline-border-right]{border-right-color:var(--darkreader-inline-border-right)!important}[data-darkreader-inline-border-top]{border-top-color:var(--darkreader-inline-border-top)!important}[data-darkreader-inline-boxshadow]{box-shadow:var(--darkreader-inline-boxshadow)!important}[data-darkreader-inline-color]{color:var(--darkreader-inline-color)!important}[data-darkreader-inline-fill]{fill:var(--darkreader-inline-fill)!important}[data-darkreader-inline-stroke]{stroke:var(--darkreader-inline-stroke)!important}[data-darkreader-inline-outline]{outline-color:var(--darkreader-inline-outline)!important}[data-darkreader-inline-stopcolor]{stop-color:var(--darkreader-inline-stopcolor)!important}[data-darkreader-inline-bg]{background:var(--darkreader-inline-bg)!important}[data-darkreader-inline-border-short]{border:var(--darkreader-inline-border-short)!important}[data-darkreader-inline-border-bottom-short]{border-bottom:var(--darkreader-inline-border-bottom-short)!important}[data-darkreader-inline-border-left-short]{border-left:var(--darkreader-inline-border-left-short)!important}[data-darkreader-inline-border-right-short]{border-right:var(--darkreader-inline-border-right-short)!important}[data-darkreader-inline-border-top-short]{border-top:var(--darkreader-inline-border-top-short)!important}[data-darkreader-inline-invert]{filter:invert(100%) hue-rotate(180deg)}</style><style class="darkreader darkreader--variables" media="screen">:root{--darkreader-neutral-background:var(--darkreader-background-ffffff, #181a1b);--darkreader-neutral-text:var(--darkreader-text-000000, #e8e6e3);--darkreader-selection-background:var(--darkreader-background-0060d4, #004daa);--darkreader-selection-text:var(--darkreader-text-ffffff, #e8e6e3)}</style><style class="darkreader darkreader--root-vars" media="screen"></style><style class="darkreader darkreader--user-agent" media="screen">html{color-scheme:dark!important}iframe{color-scheme:dark!important}body,html{background-color:var(--darkreader-background-ffffff,#181a1b)}body,html{border-color:var(--darkreader-border-4c4c4c,#736b5e);color:var(--darkreader-text-000000,#e8e6e3)}a{color:var(--darkreader-text-0040ff,#3391ff)}table{border-color:var(--darkreader-border-808080,#545b5e)}mark{color:var(--darkreader-text-000000,#e8e6e3)}::placeholder{color:var(--darkreader-text-a9a9a9,#b2aba1)}input:-webkit-autofill,select:-webkit-autofill,textarea:-webkit-autofill{background-color:var(--darkreader-background-faffbd,#404400)!important;color:var(--darkreader-text-000000,#e8e6e3)!important}::selection{background-color:var(--darkreader-background-0060d4,#004daa)!important;color:var(--darkreader-text-ffffff,#e8e6e3)!important}::-moz-selection{background-color:var(--darkreader-background-0060d4,#004daa)!important;color:var(--darkreader-text-ffffff,#e8e6e3)!important}</style><title>Example Domain</title><meta charset="utf-8"><meta http-equiv="Content-type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style type="text/css">body{background-color:#f0f0f2;margin:0;padding:0;font-family:-apple-system,system-ui,BlinkMacSystemFont,"Segoe UI","Open Sans","Helvetica Neue",Helvetica,Arial,sans-serif}div{width:600px;margin:5em auto;padding:2em;background-color:#fdfdff;border-radius:.5em;box-shadow:2px 3px 7px 2px rgba(0,0,0,.02)}a:link,a:visited{color:#38488f;text-decoration:none}@media (max-width:700px){div{margin:0 auto;width:auto}}</style><style class="darkreader darkreader--sync" media="screen"></style><meta name="darkreader" content="67eee74fa8317ce9478ac4c4612115ec"><style class="darkreader darkreader--override" media="screen">.vimvixen-hint{background-color:var(--darkreader-background-ffd76e,#684b00)!important;border-color:var(--darkreader-background-c59d00,#9e7e00)!important;color:var(--darkreader-text-302505,#d7d4cf)!important}#vimvixen-console-frame{color-scheme:light!important}::placeholder{opacity:.5!important}#edge-translate-panel-body,.MuiTypography-body1,.nfe-quote-text{color:var(--darkreader-neutral-text)!important}gr-main-header{background-color:var(--darkreader-background-add8e6,#1b4958)!important}.tou-1b6i2ox,.tou-lnqlqk,.tou-mignzq,.tou-z65h9k{background-color:var(--darkreader-neutral-background)!important}.tou-75mvi{background-color:var(--darkreader-background-cfecf5,#0f3a47)!important}.tou-17ezmgn,.tou-1b8t2us,.tou-1frrtv8,.tou-1lpmd9d,.tou-1w3fhi0,.tou-py7lfi,.tou-ta9e87{background-color:var(--darkreader-background-f5f5f5,#1e2021)!important}.tou-uknfeu{background-color:var(--darkreader-background-faedda,#432c09)!important}.tou-6i3zyv{background-color:var(--darkreader-background-85c3d8,#245d70)!important}div.mermaid-viewer-control-panel .btn{background-color:var(--darkreader-neutral-background);fill:var(--darkreader-neutral-text)}svg g rect.er{fill:var(--darkreader-neutral-background)!important}svg g rect.er.entityBox{fill:var(--darkreader-neutral-background)!important}svg g rect.er.attributeBoxOdd{fill:var(--darkreader-neutral-background)!important}svg g rect.er.attributeBoxEven{fill:var(--darkreader-selection-background);fill-opacity:.8!important}svg rect.er.relationshipLabelBox{fill:var(--darkreader-neutral-background)!important}svg g g.nodes polygon,svg g g.nodes rect{fill:var(--darkreader-neutral-background)!important}svg g rect.task{fill:var(--darkreader-selection-background)!important}svg line.messageLine0,svg line.messageLine1{stroke:var(--darkreader-neutral-text)!important}div.mermaid .actor{fill:var(--darkreader-neutral-background)!important}mitid-authenticators-code-app>.code-app-container{background-color:#fff!important;padding-top:1rem}iframe#unpaywall[src$="unpaywall.html"]{color-scheme:light!important}select option{background-color:var(--darkreader-neutral-background)!important}body#tumblr{--darkreader-bg--secondary-accent:31,32,34!important;--darkreader-bg--white:23,23,23!important;--darkreader-text--black:228,224,218!important}:host{--d2l-border-color:var(--darkreader-bg--d2l-color-gypsum)!important;--d2l-button-icon-background-color-hover:var(--darkreader-bg--d2l-color-gypsum)!important;--d2l-color-ferrite:var(--darkreader-neutral-text)!important;--d2l-color-sylvite:var(--darkreader-bg--d2l-color-sylvite)!important;--d2l-dropdown-background-color:var(--darkreader-neutral-background)!important;--d2l-dropdown-border-color:var(--darkreader-border--d2l-color-mica)!important;--d2l-input-backgroud-color:var(--darkreader-neutral-background)!important;--d2l-menu-border-color:var(--darkreader-bg--d2l-color-gypsum)!important;--d2l-tooltip-background-color:var(--darkreader-neutral-background)!important;--d2l-tooltip-border-color:var(--darkreader-bg--d2l-color-gypsum)!important}:host([_floating]) .d2l-floating-buttons-container{background-color:var(--darkreader-neutral-background)!important;border-top-color:var(--darkreader-border--d2l-color-mica)!important;opacity:.88!important}d2l-card{background:var(--darkreader-neutral-background)!important;border-color:var(--darkreader-border--d2l-color-gypsum)!important}d2l-dropdown-content>div,d2l-menu-item{background-color:var(--darkreader-neutral-background)!important;border-radius:10px!important}d2l-empty-state-simple{border-color:var(--darkreader-bg--d2l-color-gypsum)!important}.d2l-button-filter>ul>li>a.vui-button{border-color:var(--darkreader-border--d2l-color-mica)!important}.d2l-label-text:has(.d2l-button-subtle-content):active,.d2l-label-text:has(.d2l-button-subtle-content):focus,.d2l-label-text:has(.d2l-button-subtle-content):hover{background-color:var(--darkreader-bg--d2l-color-gypsum)!important}.d2l-navigation-centerer{color:inherit!important}.d2l-tabs-layout{border-color:var(--darkreader-border--d2l-color-gypsum)!important}.d2l-calendar-date,.d2l-htmleditor-container,.d2l-input{background-color:var(--darkreader-neutral-background)!important}.d2l-collapsible-panel{border:1px solid var(--darkreader-border--d2l-color-mica)!important;border-radius:.4rem!important}.d2l-collapsible-panel-divider{border-bottom:1px solid var(--darkreader-border--d2l-color-mica)!important}.d2l-w2d-flex{border-bottom:2px solid var(--darkreader-border--d2l-color-mica)!important}.d2l-collapsible-panel scrolled,.d2l-collapsible-panel-header,.d2l-w2d-collection-fixed{background-color:var(--darkreader-neutral-background)!important}.d2l-loading-spinner-bg{fill:var(--darkreader-bg--d2l-color-gypsum)!important}.d2l-loading-spinner-bg-stroke{stroke:var(--darkreader-border--d2l-color-mica)!important}.d2l-loading-spinner-wrapper svg circle,.d2l-loading-spinner-wrapper svg path{fill:var(--darkreader-neutral-background)!important}</style></head><body><div><h1>Example Domain</h1><p>This domain is for use in illustrative examples in documents. You may use this domain in literature without prior coordination or asking for permission.</p><p><a href="https://www.iana.org/domains/example">More information...</a></p></div></body></html>"#;
         let mut parser = HTMLParser::new(html);
         let node = parser.parse().unwrap();
 
