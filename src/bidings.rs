@@ -45,13 +45,18 @@ pub fn request(url: &str) -> PyResult<String> {
             if let Ok(response) = url.request() {
                 Ok(response.clone())
             } else {
-                Err(PyValueError::new_err("an error"))
+                Err(PyValueError::new_err("Error: unable to send request"))
             }
         }
         Err(error) => {
             // potential issue we downcast to something else
-            let url_error: &URLError = error.downcast_ref().unwrap();
-            Err(PyValueError::new_err(url_error.message.clone()))
+            if let Some(url_error) = error.downcast_ref::<URLError>() {
+                Err(PyValueError::new_err(url_error.message.clone()))
+            } else {
+                Err(PyValueError::new_err(
+                    "Error: unable to create URL instance",
+                ))
+            }
         }
     }
 }
