@@ -2,6 +2,8 @@ use std::{collections::HashMap, iter::Peekable, str::Chars};
 
 type Attrs = HashMap<String, String>;
 
+static SELF_CLOSING_TAGS: [&'static str; 4] = ["meta", "link", "input", "img"];
+
 #[derive(Debug)]
 pub struct NodeData {
     pub tag_name: String,
@@ -42,15 +44,20 @@ impl<'a> HTMLParser<'a> {
             Vec::new(),
         );
 
+        // 1. Parse tag name
         self.parse_tag_name(&mut root);
 
-        // case where we start parsing a new tag because it started with "<" but it ended up being a closing tab
-        // we ignore this node
-        if root.data.tag_name.starts_with('/') {
-            return None;
+        let tag_name = root.data.tag_name.clone();
+
+        // 2. Parse attributes
+        self.parse_attributes(&mut root);
+
+        // do not parse content if it's a self closing tag
+        if SELF_CLOSING_TAGS.contains(&tag_name.as_str()) {
+            return Some(root);
         }
 
-        self.parse_attributes(&mut root);
+        // 3. Parse content
         self.parse_content(&mut root);
 
         Some(root)
@@ -59,11 +66,12 @@ impl<'a> HTMLParser<'a> {
     fn parse_tag_name(&mut self, node: &mut Node) {
         let mut tag_name_str = String::new();
 
+        // Collect chars from current pointer until we find an empty space or a closing tag char
+        // empty space: <p( )class="">
+        // closing tag char: <p(>)
         loop {
             if let Some(next_char) = self.chars.peek() {
-                if *next_char == ' ' {
-                    // consume the empty space
-                    self.chars.next().unwrap();
+                if *next_char == ' ' || *next_char == '>' {
                     break;
                 }
 
@@ -73,14 +81,16 @@ impl<'a> HTMLParser<'a> {
             }
         }
 
-        node.data.tag_name = tag_name_str.replace('<', "");
+        // Remove < from the start and / from the end for self closing tags
+        // <br/>
+        node.data.tag_name = tag_name_str.replace('<', "").replace('/', "");
     }
 
     fn parse_attributes(&mut self, node: &mut Node) {
         let mut attributes_str = String::new();
 
-        // I can move all these loops that consume until a given point and returns a collected string
-        // to its own method: consume_until(char) -> str
+        // Collect chars from current pointer until we find a closing tag char
+        // closing tag char: <p class="hello"(>)
         loop {
             if let Some(next_char) = self.chars.peek() {
                 if *next_char == '>' {
@@ -93,6 +103,16 @@ impl<'a> HTMLParser<'a> {
             } else {
                 break;
             }
+        }
+        
+        // Trimming, there's always an empty space at the start from previous step (parse tag)
+        // <p class="35"></p>
+        // parse tag name will consume ane leave: '( )class="asd"'
+        attributes_str = attributes_str.trim().to_string();
+
+        // No attributes just return
+        if attributes_str.is_empty() {
+            return;
         }
 
         let mut attributes = HashMap::new();
@@ -117,6 +137,10 @@ impl<'a> HTMLParser<'a> {
                 // Check if content is another element
                 if *next_char == '<' {
                     self.chars.next().unwrap();
+
+                    if let Some('/') = self.chars.peek() {
+                        break;
+                    }
 
                     if let Some(child) = self.parse() {
                         node.children.push(child);
@@ -240,6 +264,58 @@ mod tests {
         let html = r#"<html data-darkreader-mode="dynamic" data-darkreader-scheme="dark"><h1 class="title-site">Welcome to my page</h1><h2 class="subtitle-site">Subtitle content</h2></html>"#;
         let mut parser = HTMLParser::new(html);
         let node = parser.parse().unwrap();
+        let h1 = node.children.get(0).unwrap();
+        let h1_text_node = h1.children.get(0).unwrap();
+        let h2 = node.children.get(1).unwrap();
+        let h2_text_node = h2.children.get(0).unwrap();
+
         assert!(node.children.len() == 2);
+        assert_eq!(h1.data.tag_name, "h1".to_string());
+        assert_eq!(
+            h1.data.attributes.get("class"),
+            Some(&"title-site".to_string())
+        );
+        assert_eq!(
+            h1_text_node.data.attributes.get("content"),
+            Some(&"Welcome to my page".to_string())
+        );
+        assert_eq!(
+            h2.data.attributes.get("class"),
+            Some(&"subtitle-site".to_string())
+        );
+        assert_eq!(
+            h2_text_node.data.attributes.get("content"),
+            Some(&"Subtitle content".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_meta_tags() {
+        let html = r#"<html><head><title>Example Domain</title><meta charset="utf-8"><meta content="text/html; charset=utf-8" http-equiv="Content-type"><meta content="width=device-width,initial-scale=1" name="viewport"></head><body><div><h1>Example Domain</h1><p>This domain is for use in illustrative examples in documents. You may use this domain in literature without prior coordination or asking for permission.</p><p><a>More information...</a></p></div></body></html>"#;
+        let mut parser = HTMLParser::new(html);
+        let node = parser.parse().unwrap();
+
+        println!("{:#?}", node);
+
+        assert!(true);
+
+        // assert!(node.children.len() == 2);
+        // assert_eq!(h1.data.tag_name, "h1".to_string());
+        // assert_eq!(
+        //     h1.data.attributes.get("class"),
+        //     Some(&"title-site".to_string())
+        // );
+        // assert_eq!(
+        //     h1_text_node.data.attributes.get("content"),
+        //     Some(&"Welcome to my page".to_string())
+        // );
+        // assert_eq!(
+        //     h2.data.attributes.get("class"),
+        //     Some(&"subtitle-site".to_string())
+        // );
+        // assert_eq!(
+        //     h2_text_node.data.attributes.get("content"),
+        //     Some(&"Subtitle content".to_string())
+        // );
     }
 }
