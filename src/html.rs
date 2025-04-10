@@ -32,7 +32,7 @@ pub struct HTMLParser<'a> {
 }
 
 impl<'a> HTMLParser<'a> {
-    pub fn new(source: &'a str) -> HTMLParser {
+    pub fn new(source: &'a str) -> Self {
         Self {
             chars: source.chars().peekable(),
         }
