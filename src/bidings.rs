@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::html::{HTMLParser, Node};
+use crate::html::{HTMLParser, Node, NodeData};
 use crate::url::{URLError, URL};
 
 use pyo3::prelude::*;
@@ -31,6 +31,18 @@ impl From<&Node> for PyNode {
             data: PyNodeData {
                 tag_name: value.data.tag_name.clone(),
                 attributes: value.data.attributes.clone(),
+            },
+        }
+    }
+}
+
+impl Into<Node> for &PyNode {
+    fn into(self) -> Node {
+        Node {
+            children: self.children.iter().map(|node| node.into()).collect(),
+            data: NodeData {
+                tag_name: self.data.tag_name.clone(),
+                attributes: self.data.attributes.clone(),
             },
         }
     }
@@ -67,4 +79,15 @@ pub fn load(body: &str) -> PyResult<PyNode> {
     let root = parser.parse().unwrap();
 
     Ok(PyNode::from(&root))
+}
+
+#[pyfunction]
+pub fn find_text_nodes(pynode: &PyNode) -> PyResult<Vec<PyNode>> {
+    let node: Node = pynode.into();
+    let text_nodes = node.find_text_nodes();
+
+    Ok(text_nodes
+        .iter()
+        .map(|n| PyNode::from(n.to_owned()))
+        .collect())
 }

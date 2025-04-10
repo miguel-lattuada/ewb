@@ -17,5 +17,6 @@ fn ewb(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
     m.add_function(wrap_pyfunction!(load, m)?)?;
     m.add_function(wrap_pyfunction!(request, m)?)?;
+    m.add_function(wrap_pyfunction!(find_text_nodes, m)?)?;
     Ok(())
 }

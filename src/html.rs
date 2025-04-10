@@ -25,6 +25,28 @@ impl Node {
             children,
         }
     }
+
+    pub fn find_text_nodes<'a>(&'a self) -> Vec<&'a Node> {
+        let mut collected_nodes = Vec::new();
+
+        self.find_nodes("text", &mut collected_nodes);
+
+        collected_nodes
+    }
+
+    pub fn find_nodes<'a>(&'a self, node_type: &str, collected_nodes: &mut Vec<&'a Node>) {
+        for child in &self.children {
+            if child.data.tag_name == node_type {
+                collected_nodes.push(child);
+            } else {
+                child.find_nodes(node_type, collected_nodes);
+            }
+        }
+    }
+
+    pub fn attr(&self, name: &str) -> &String {
+        self.data.attributes.get(name).unwrap()
+    }
 }
 
 pub struct HTMLParser<'a> {
@@ -351,5 +373,19 @@ mod tests {
             text.data.attributes.get("content"),
             Some(&"Example Domain".to_string())
         );
+    }
+
+    #[test]
+    fn test_search_text_nodes() {
+        let html = r#"<html><head><title>Example Domain</title><meta charset="utf-8"><meta content="text/html; charset=utf-8" http-equiv="Content-type"><meta content="width=device-width,initial-scale=1" name="viewport"></head><body><div><h1>Example Domain</h1><p>This domain is for use in illustrative examples in documents. You may use this domain in literature without prior coordination or asking for permission.</p><p><a>More information...</a></p></div></body></html>"#;
+        let mut parser = HTMLParser::new(html);
+        let root = parser.parse().unwrap();
+        let text_nodes = root.find_text_nodes();
+
+        assert_eq!(text_nodes.len(), 4);
+        assert_eq!(text_nodes[0].attr("content"), "Example Domain");
+        assert_eq!(text_nodes[1].attr("content"), "Example Domain");
+        assert_eq!(text_nodes[2].attr("content"), "This domain is for use in illustrative examples in documents. You may use this domain in literature without prior coordination or asking for permission.");
+        assert_eq!(text_nodes[3].attr("content"), "More information...");
     }
 }
