@@ -1,1 +1,2 @@
 minify-html==0.16.4
+maturin==1.8.3
