@@ -4,7 +4,7 @@ use regex::Regex;
 
 type Attrs = HashMap<String, String>;
 
-static SELF_CLOSING_TAGS: [&'static str; 4] = ["meta", "link", "input", "img"];
+static SELF_CLOSING_TAGS: [&'static str; 5] = ["meta", "link", "input", "img", "br"];
 
 #[derive(Debug)]
 pub struct NodeData {
@@ -79,13 +79,13 @@ impl<'a> HTMLParser<'a> {
         // 2. Parse attributes
         self.parse_attributes(&mut root);
 
-        // 2.a. do not parse content if it's a self-closing tag
+        // 2.a. consume white spaces and line feeds before the content
+        self.consume_whitespaces();
+
+        // 2.b. do not parse content if it's a self-closing tag
         if SELF_CLOSING_TAGS.contains(&tag_name.as_str()) {
             return Some(root);
         }
-
-        // 3. consume white spaces and line feeds before the content
-        self.consume_whitespaces();
 
         // 4. Parse content
         self.parse_content(&mut root);
@@ -170,19 +170,21 @@ impl<'a> HTMLParser<'a> {
                 if *next_char == '<' {
                     self.chars.next().unwrap();
 
-                    // check that we are not in a closing tag instead of an opening one
-                    if let Some('/') = self.chars.peek() {
+                    // check that we are not in a closing tag or comment instead of an opening one
+                    let next_char = self.chars.peek().unwrap();
+
+                    if ['!', '/'].contains(next_char) {
                         // If we are in a closing tag, consume all the chars until we find a > char
                         self.consume_until(&'>');
                         break; // We break out of the loop since we already parsed child for this element
-                    }
+                    };
 
                     if let Some(child) = self.parse() {
                         node.children.push(child);
                     }
                 } else {
                     // Treat content as plain text and skip the closing tag
-                    let content_str = self.consume_until(&'<');
+                    let content_str = self.read_until(&'<');
 
                     // We create a "text" node for now to represent non-node children
                     // This will contain all CSS / JS / Plan Text
@@ -200,10 +202,6 @@ impl<'a> HTMLParser<'a> {
                         .insert("content".to_string(), content_str);
 
                     node.children.push(text_node);
-
-                    // Consum until the end of the tag
-                    self.consume_until(&'>');
-                    break; // Once we parse non-node content from a node, we just close the loop
                 }
             } else {
                 break;
@@ -211,18 +209,26 @@ impl<'a> HTMLParser<'a> {
         }
     }
 
-    fn consume_until(&mut self, char: &char) -> String {
+    fn read_until(&mut self, char: &char) -> String {
         let mut collected = String::new();
 
+        while let Some(next_char) = self.chars.peek() {
+            if next_char == char {
+                break;
+            }
+            collected.push(self.chars.next().unwrap());
+        }
+
+        collected
+    }
+
+    fn consume_until(&mut self, char: &char) {
         while let Some(_) = self.chars.peek() {
             let consumed = self.chars.next().unwrap();
             if consumed == *char {
                 break;
             }
-            collected.push(consumed);
         }
-
-        collected
     }
 
     fn consume_whitespaces(&mut self) {
@@ -413,12 +419,13 @@ mod tests {
     }
 
     #[test]
-    fn test_consume_collect_until() {
+    fn test_consume_read_until() {
         let html = r#"hello world</>"#;
         let mut parser = HTMLParser::new(html);
-        let collected = parser.consume_until(&'<');
+        let collected = parser.read_until(&'<');
 
         assert_eq!(collected, "hello world".to_string());
+        assert_eq!(parser.chars.next(), Some('<'));
     }
 
     #[test]
@@ -457,5 +464,39 @@ mod tests {
             h2_text_node.data.attributes.get("content"),
             Some(&"Subtitle content".to_string())
         );
+    }
+
+    #[test]
+    fn test_self_closing_tags() {
+        let html = r#"
+            <blockquote>
+            一派白虹起，千寻雪浪飞。<br>
+            海风吹不断，江月照还依。<br>
+            冷气分青嶂，余流润翠微。<br>
+            潺盢名瀑布，真似挂帘帷。<br>
+            </blockquote>
+            "#;
+        let mut parser = HTMLParser::new(html);
+        let node = parser.parse().unwrap();
+
+        assert_eq!(node.children.len(), 8);
+    }
+
+    #[test]
+    fn test_nested_spans() {
+        let html = r#"
+            <blockquote>
+            一派白虹起，<span>千寻雪浪飞。</span><br>
+            海风吹不断，江月照还依。<br>
+            冷气分青嶂，余流润翠微。<br>
+            潺盢名瀑布，真似挂帘帷。<br>
+            </blockquote>
+            "#;
+        let mut parser = HTMLParser::new(html);
+        let node = parser.parse();
+
+        println!("{:#?}", node);
+
+        assert!(true);
     }
 }
