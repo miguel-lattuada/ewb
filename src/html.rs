@@ -97,22 +97,10 @@ impl<'a> HTMLParser<'a> {
     }
 
     fn parse_tag_name(&mut self, node: &mut Node) {
-        let mut tag_name_str = String::new();
-
         // Collect chars from current pointer until we find an empty space or a closing tag char
         // empty space: <p( )class="">
         // closing tag char: <p(>)
-        loop {
-            if let Some(next_char) = self.chars.peek() {
-                if *next_char == ' ' || *next_char == '>' {
-                    break;
-                }
-
-                tag_name_str.push(self.chars.next().unwrap());
-            } else {
-                break;
-            }
-        }
+        let tag_name_str = self.read_until(vec![&' ', &'>']);
 
         // Remove < from the start and / from the end for self-closing tags
         // <br/>
@@ -120,23 +108,9 @@ impl<'a> HTMLParser<'a> {
     }
 
     fn parse_attributes(&mut self, node: &mut Node) {
-        let mut attributes_str = String::new();
-
-        // Collect chars from current pointer until we find a closing tag char
-        // closing tag char: <p class="hello"(>)
-        loop {
-            if let Some(next_char) = self.chars.peek() {
-                if *next_char == '>' {
-                    // Consume last >
-                    self.chars.next().unwrap();
-                    break;
-                }
-
-                attributes_str.push(self.chars.next().unwrap());
-            } else {
-                break;
-            }
-        }
+        let attributes_str = self.read_until(vec![&'>']);
+        // Consume last >
+        self.chars.next().unwrap();
 
         // No attributes just return
         if attributes_str.is_empty() {
@@ -184,7 +158,7 @@ impl<'a> HTMLParser<'a> {
                     }
                 } else {
                     // Treat content as plain text and skip the closing tag
-                    let content_str = self.read_until(&'<');
+                    let content_str = self.read_until(vec![&'<']);
 
                     // We create a "text" node for now to represent non-node children
                     // This will contain all CSS / JS / Plan Text
@@ -209,11 +183,11 @@ impl<'a> HTMLParser<'a> {
         }
     }
 
-    fn read_until(&mut self, char: &char) -> String {
+    fn read_until(&mut self, chars: Vec<&char>) -> String {
         let mut collected = String::new();
 
         while let Some(next_char) = self.chars.peek() {
-            if next_char == char {
+            if chars.contains(&next_char) {
                 break;
             }
             collected.push(self.chars.next().unwrap());
@@ -422,7 +396,7 @@ mod tests {
     fn test_consume_read_until() {
         let html = r#"hello world</>"#;
         let mut parser = HTMLParser::new(html);
-        let collected = parser.read_until(&'<');
+        let collected = parser.read_until(vec![&'<']);
 
         assert_eq!(collected, "hello world".to_string());
         assert_eq!(parser.chars.next(), Some('<'));
