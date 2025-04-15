@@ -57,9 +57,13 @@ pub struct HTMLParser<'a> {
 
 impl<'a> HTMLParser<'a> {
     pub fn new(source: &'a str) -> Self {
-        Self {
+        let mut instance = Self {
             chars: source.trim().chars().peekable(),
-        }
+        };
+
+        instance.consume_doctype(source);
+
+        instance
     }
 
     pub fn parse(&mut self) -> Option<Node> {
@@ -221,6 +225,14 @@ impl<'a> HTMLParser<'a> {
             }
         }
     }
+
+    fn consume_doctype(&mut self, source: &'a str) {
+        let doctype_regex = Regex::new(r#"<!(?i)(doctype)\shtml(.+)?>"#).unwrap();
+        if doctype_regex.is_match(source) {
+            self.consume_until(&'>');
+            self.consume_whitespaces();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -363,7 +375,7 @@ mod tests {
 
     #[test]
     fn test_search_text_nodes() {
-        let html = r#"<html><head><title>Example Domain</title><meta charset="utf-8"><meta content="text/html; charset=utf-8" http-equiv="Content-type"><meta content="width=device-width,initial-scale=1" name="viewport"></head><body><div><h1>Example Domain</h1><p>This domain is for use in illustrative examples in documents. You may use this domain in literature without prior coordination or asking for permission.</p><p><a>More information...</a></p></div></body></html>"#;
+        let html = r#"<!doctype html><html><head><title>Example Domain</title><meta charset="utf-8"><meta content="text/html; charset=utf-8" http-equiv="Content-type"><meta content="width=device-width,initial-scale=1" name="viewport"></head><body><div><h1>Example Domain</h1><p>This domain is for use in illustrative examples in documents. You may use this domain in literature without prior coordination or asking for permission.</p><p><a>More information...</a></p></div></body></html>"#;
         let mut parser = HTMLParser::new(html);
         let root = parser.parse().unwrap();
         let text_nodes = root.find_text_nodes();
@@ -422,8 +434,6 @@ mod tests {
         let mut parser = HTMLParser::new(html);
         let node = parser.parse().unwrap();
 
-        println!("{:#?}", node);
-
         let h1 = node.children.get(0).unwrap();
         let h1_text_node = h1.children.get(0).unwrap();
         let h2 = node.children.get(1).unwrap();
@@ -468,6 +478,7 @@ mod tests {
     #[test]
     fn test_nested_spans() {
         let html = r#"
+            <!doctype html>
             <blockquote>
             一派白虹起，<span>千寻雪浪飞。</span><br>
             海风吹不断，江月照还依。<br>
