@@ -26,6 +26,20 @@ pub struct PyNode {
 
 #[pymethods]
 impl PyNode {
+    fn get_all_nodes(&self) -> PyResult<Vec<PyNode>> {
+        let mut res = Vec::new();
+
+        if self.children.len() == 0 {
+            res.push(self.clone());
+        } else {
+            for child in &self.children {
+                res.extend(child.get_all_nodes().unwrap());
+            }
+        }
+
+        Ok(res)
+    }
+
     fn get_text_nodes(&self) -> PyResult<Vec<PyNode>> {
         Ok(self.get_nodes("text"))
     }
