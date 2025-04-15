@@ -145,12 +145,19 @@ impl<'a> HTMLParser<'a> {
                     self.chars.next().unwrap();
 
                     // check that we are not in a closing tag or comment instead of an opening one
-                    let next_char = self.chars.peek().unwrap();
+                    let next_char = self.chars.peek().unwrap().clone();
 
-                    if ['!', '/'].contains(next_char) {
+                    if ['!', '/'].contains(&next_char) {
                         // If we are in a closing tag, consume all the chars until we find a > char
                         self.consume_until(&'>');
-                        break; // We break out of the loop since we already parsed child for this element
+
+                        if next_char == '/' {
+                            break; // We break out of the loop since we already parsed child for this element
+                        } else {
+                            // TODO: remove this from here, find a better place
+                            self.consume_whitespaces();
+                            continue; // We found a comment, consumed it and keep going
+                        }
                     };
 
                     if let Some(child) = self.parse() {
@@ -218,6 +225,8 @@ impl<'a> HTMLParser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::read_to_string;
+
     use super::*;
 
     #[test]
@@ -462,15 +471,25 @@ mod tests {
             <blockquote>
             一派白虹起，<span>千寻雪浪飞。</span><br>
             海风吹不断，江月照还依。<br>
+            <!-- Content originally taken from https://www.zggdwx.com/xiyou.html -->
             冷气分青嶂，余流润翠微。<br>
             潺盢名瀑布，真似挂帘帷。<br>
             </blockquote>
             "#;
         let mut parser = HTMLParser::new(html);
-        let node = parser.parse();
+        let node = parser.parse().unwrap();
 
-        println!("{:#?}", node);
+        assert_eq!(node.children.len(), 9);
+    }
 
-        assert!(true);
+    #[test]
+    fn test_full_text() {
+        let html_str = read_to_string("server/web.html").unwrap();
+        let mut parser = HTMLParser::new(&html_str);
+
+        let root = parser.parse().unwrap();
+        let nodes = root.find_text_nodes();
+
+        assert_eq!(nodes.len(), 83);
     }
 }
