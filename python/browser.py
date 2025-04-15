@@ -10,7 +10,7 @@ FontStyle = t.Literal['roman', 'italic']
 FontDefinition = t.Tuple[int, FontWeight, FontStyle]
 FontValue = t.Tuple['tkinter.font.Font', 'tkinter.Label']
 
-WIDTH = 800
+WIDTH = 1024
 HEIGHT = 600
 HSTEP, VSTEP = 13, 18
 SCROLL_STEP = 100
@@ -44,6 +44,7 @@ def get_font(size: int, weight: FontWeight, style: FontStyle):
 
     return FONTS[key][0]
 
+
 class Layout:
     def __init__(self, root: 'ewb.PyNode'):
         self.root = root
@@ -62,45 +63,43 @@ class Layout:
         for tok in tokens:
             self.token(tok)
 
-        # self.flush()
+        self.flush()
 
     def token(self, token: 'ewb.PyNode'):
         token_type = token.data.tag_name
-        token_content = token.data.attributes.get('content', '')
+        style = self.style
+        weight = self.weight
+        size = self.size
 
-        if token_type == 'text':
-            for word in token_content.split():
-                self.word(word)
+        # Set content style
+        if token_type == "i":
+            style = "italic"
+        elif token_type == "b":
+            weight = "bold"
+        elif token_type == "small":
+            size -= 2
+        elif token_type == "big":
+            size += 4
+        elif token_type == "h1":
+            size += 10
 
-        self.flush()
+        token_content = token.get_inmidiate_text_node()
 
-        # if isinstance(tok, Text):
-        #     for word in tok.text.split():
-        #         self.word(word)
-        # elif tok.tag == "i":
-        #     self.style = "italic"
-        # elif tok.tag == "/i":
-        #     self.style = "roman"
-        # elif tok.tag == "b":
-        #     self.weight = "bold"
-        # elif tok.tag == "/b":
-        #     self.weight = "normal"
-        # elif tok.tag == "small":
-        #     self.size -= 2
-        # elif tok.tag == "/small":
-        #     self.size += 2
-        # elif tok.tag == "big":
-        #     self.size += 4
-        # elif tok.tag == "/big":
-        #     self.size -= 4
-        # elif tok.tag == "br":
-        #     self.flush()
-        # elif tok.tag == "/p":
-        #     self.flush()
-        #     self.cursor_y += VSTEP
+        if token_content:
+            content = token_content.data.attributes.get('content', '')
+            self.word(content, size, weight, style)
 
-    def word(self, word: str):
-        font = get_font(self.size, self.weight, self.style)
+        if token_type == "p":
+            self.flush()
+            self.cursor_y += VSTEP
+        if token_type == "h1":
+            self.flush()
+        elif token_type == "br":
+            self.flush()
+
+
+    def word(self, word: str, size: int, weight: FontWeight, style: FontStyle):
+        font = get_font(size, weight, style)
         w = font.measure(word)
         if self.cursor_x + w > WIDTH - HSTEP:
             self.flush()

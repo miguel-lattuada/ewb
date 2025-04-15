@@ -26,22 +26,38 @@ pub struct PyNode {
 
 #[pymethods]
 impl PyNode {
-    fn get_all_nodes(&self) -> PyResult<Vec<PyNode>> {
+    fn get_inmidiate_text_node(&self) -> Option<PyNode> {
+        self.get_inmidiate_node("text")
+    }
+
+    fn get_all_nodes(&self) -> Vec<PyNode> {
         let mut res = Vec::new();
 
-        if self.children.len() == 0 {
+        if self.data.tag_name != "text" {
             res.push(self.clone());
-        } else {
+        }
+
+        for child in &self.children {
+            res.extend(child.get_all_nodes());
+        }
+
+        res
+    }
+
+    fn get_text_nodes(&self) -> Vec<PyNode> {
+        self.get_nodes("text")
+    }
+
+    fn get_inmidiate_node(&self, node_type: &str) -> Option<PyNode> {
+        if self.children.len() > 0 {
             for child in &self.children {
-                res.extend(child.get_all_nodes().unwrap());
+                if child.data.tag_name == node_type {
+                    return Some(child.clone());
+                }
             }
         }
 
-        Ok(res)
-    }
-
-    fn get_text_nodes(&self) -> PyResult<Vec<PyNode>> {
-        Ok(self.get_nodes("text"))
+        None
     }
 
     fn get_nodes(&self, node_type: &str) -> Vec<PyNode> {
