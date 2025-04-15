@@ -1,14 +1,18 @@
 ''' Browser window '''
 import typing as t
 import tkinter
-
-import minify_html
-
 import ewb
+
+if t.TYPE_CHECKING:
+    from ewb import PyNode
+    from tkinter import Event, Misc
 
 WIDTH = 800
 HEIGHT = 600
 HSTEP, VSTEP = 13, 18
+SCROLL_STEP = 100
+
+XYChar = t.Tuple[float, float, str]
 
 class Browser:
     '''
@@ -18,36 +22,39 @@ class Browser:
         self.window = tkinter.Tk()
         self.canvas = tkinter.Canvas(self.window, width=WIDTH, height=HEIGHT)
         self.canvas.pack()
+        self.scroll = 0
+        self.window.bind("<Down>", func=self.scrolldown)
 
     def load(self, url: str):
-        ''' Draw canvas '''
-        response = t.cast(str, ewb.request(url))
-
-        response = minify_html.minify(
-            code=response,
-            minify_css=True,
-            minify_js=True,
-            keep_closing_tags=True,
-            preserve_brace_template_syntax=True,
-            keep_html_and_head_opening_tags=True,
-        ).replace('<!doctype html>', '')
-
-        print(response)
-
+        response = ewb.request(url)
         node = ewb.load(response)
         text_nodes = node.get_text_nodes()
 
-        print(len(text_nodes))
+        self.display_list = Browser.layout(text_nodes)
+        self.draw()
 
+    @staticmethod
+    def layout(text_nodes: t.List['PyNode']) -> t.List[XYChar]:
+        display_list: t.List[XYChar] = []
         cursor_x, cursor_y = HSTEP, VSTEP
-        for text_node in text_nodes:
-            text = text_node['data']['attributes']['content']
 
-            for char in text:
-                self.canvas.create_text(
-                    cursor_x, cursor_y, text=char)
-                cursor_x += HSTEP
+        for node in text_nodes:
+            text = node.data.attributes.get('content')
+            if text:
+                for char in text:
+                    display_list.append((cursor_x, cursor_y, char))
+                    cursor_x += HSTEP
+                    if cursor_x >= WIDTH - HSTEP:
+                        cursor_y += VSTEP
+                        cursor_x = HSTEP
 
-                if cursor_x >= WIDTH - HSTEP:
-                    cursor_y += VSTEP
-                    cursor_x = HSTEP
+        return display_list
+
+    def draw(self):
+        self.canvas.delete('all')
+        for x, y, c in self.display_list:
+            self.canvas.create_text(x, y - self.scroll, text=c)
+
+    def scrolldown(self, event: "Event[Misc]"):
+        self.scroll += SCROLL_STEP
+        self.draw()

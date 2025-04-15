@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use pyo3::{exceptions::PyValueError, pyfunction, PyResult};
 
 #[pyclass]
-#[derive(Clone, IntoPyObjectRef)]
+#[derive(Clone)]
 pub struct PyNodeData {
     #[pyo3(get)]
     pub tag_name: String,
@@ -16,7 +16,7 @@ pub struct PyNodeData {
 }
 
 #[pyclass]
-#[derive(Clone, IntoPyObjectRef)]
+#[derive(Clone)]
 pub struct PyNode {
     #[pyo3(get)]
     pub children: Vec<PyNode>,
@@ -26,16 +26,16 @@ pub struct PyNode {
 
 #[pymethods]
 impl PyNode {
-    fn get_text_nodes(&self) -> PyResult<Vec<&PyNode>> {
+    fn get_text_nodes(&self) -> PyResult<Vec<PyNode>> {
         Ok(self.get_nodes("text"))
     }
 
-    fn get_nodes(&self, node_type: &str) -> Vec<&PyNode> {
+    fn get_nodes(&self, node_type: &str) -> Vec<PyNode> {
         let mut res = Vec::new();
 
         for child in &self.children {
             if child.data.tag_name == node_type {
-                res.push(child);
+                res.push(child.clone());
             } else {
                 res.extend(child.get_nodes(node_type));
             }

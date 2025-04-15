@@ -1,8 +1,8 @@
-mod bidings;
+mod bindings;
 mod html;
 mod url;
 
-use bidings::*;
+use bindings::*;
 use pyo3::prelude::*;
 
 /// Formats the sum of two numbers as string.
